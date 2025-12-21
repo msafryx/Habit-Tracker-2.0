@@ -377,29 +377,41 @@ function openMonthModal(monthIndex) {
   const label = document.getElementById('modal-month-label');
   const summary = document.getElementById('modal-month-summary');
   const list = document.getElementById('modal-days');
-  const percent = computeMonthAverageFor(monthIndex);
-  label.textContent = monthName(monthIndex);
+  if (!backdrop || !label || !summary || !list) return;
+
+  const safeIndex = Number.isInteger(monthIndex) ? Math.max(0, Math.min(11, monthIndex)) : new Date().getMonth();
+  const percent = computeMonthAverageFor(safeIndex);
+  label.textContent = monthName(safeIndex);
   summary.textContent = `${percent}% average completion`;
   list.innerHTML = '';
 
   const now = new Date();
   const year = now.getFullYear();
-  const lastDay = new Date(year, monthIndex + 1, 0).getDate();
-  for (let day = 1; day <= lastDay; day += 1) {
-    const d = new Date(year, monthIndex, day);
-    d.setHours(12, 0, 0, 0);
-    const key = formatKey(d);
-    const progress = calculateDailyProgress(key);
-    const item = document.createElement('div');
-    item.className = 'modal-day';
-    item.innerHTML = `
-      <div class="date">${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</div>
-      <div class="caption">${progress.completed}/${progress.total || state.habits.length} habits</div>
-      <div class="progress-shell" style="margin-top:6px;"><div class="progress-bar" style="width:${progress.percent}%"></div></div>
-      <div class="caption" style="margin-top:6px;">${progress.percent}% complete</div>
-    `;
-    list.appendChild(item);
+  const lastDay = new Date(year, safeIndex + 1, 0).getDate();
+
+  if (!state.habits.length) {
+    const message = document.createElement('p');
+    message.className = 'caption';
+    message.textContent = 'Add habits first to see daily progress.';
+    list.appendChild(message);
+  } else {
+    for (let day = 1; day <= lastDay; day += 1) {
+      const d = new Date(year, safeIndex, day);
+      d.setHours(12, 0, 0, 0);
+      const key = formatKey(d);
+      const progress = calculateDailyProgress(key);
+      const item = document.createElement('div');
+      item.className = 'modal-day';
+      item.innerHTML = `
+        <div class="date">${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</div>
+        <div class="caption">${progress.completed}/${progress.total || state.habits.length} habits</div>
+        <div class="progress-shell" style="margin-top:6px;"><div class="progress-bar" style="width:${progress.percent}%"></div></div>
+        <div class="caption" style="margin-top:6px;">${progress.percent}% complete</div>
+      `;
+      list.appendChild(item);
+    }
   }
+
   backdrop.hidden = false;
 }
 
@@ -602,6 +614,8 @@ function attachHandlers() {
   }
   const closeModalBtn = document.getElementById('close-modal');
   if (closeModalBtn) closeModalBtn.addEventListener('click', closeMonthModal);
+  const openCurrentMonthBtn = document.getElementById('open-current-month');
+  if (openCurrentMonthBtn) openCurrentMonthBtn.addEventListener('click', () => openMonthModal(new Date().getMonth()));
 
   setInterval(() => {
     renderClock();
