@@ -22,12 +22,16 @@ const milestoneTargets = [
 
 const STORAGE_KEY = 'habit-tracker-2.0';
 
-let state = {
-  habits: DEFAULT_HABITS,
-  habitLog: {},
-  notes: '',
-  lastSaved: null,
-};
+let state = createDefaultState();
+
+function createDefaultState() {
+  return {
+    habits: DEFAULT_HABITS.map((h) => ({ ...h })),
+    habitLog: {},
+    notes: '',
+    lastSaved: null,
+  };
+}
 
 function formatKey(date) {
   return date.toISOString().split('T')[0];
@@ -74,12 +78,16 @@ function loadState() {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
       state = JSON.parse(saved);
+      state.habits = (state.habits || []).map((h) => ({ ...h }));
+      state.habitLog = state.habitLog || {};
+      state.notes = state.notes || '';
+      state.lastSaved = state.lastSaved || null;
     } else {
-      state = { habits: DEFAULT_HABITS, habitLog: {}, notes: '', lastSaved: null };
+      state = createDefaultState();
     }
   } catch (err) {
     console.warn('Falling back to defaults', err);
-    state = { habits: DEFAULT_HABITS, habitLog: {}, notes: '', lastSaved: null };
+    state = createDefaultState();
   }
 
   // ensure all logs have all habits
@@ -177,6 +185,7 @@ function renderHabitList() {
       habit.name = newName.trim();
       habit.icon = newIcon.trim();
       habit.category = newCat.trim();
+      markUnsynced();
       saveState();
       refreshUI();
     });
@@ -191,6 +200,7 @@ function renderHabitList() {
       Object.values(state.habitLog).forEach((entry) => {
         delete entry.habits[habit.id];
       });
+      markUnsynced();
       saveState();
       refreshUI();
     });
@@ -248,6 +258,7 @@ function renderWeekTable() {
       input.checked = ensureLogEntry(key).habits[habit.id];
       input.addEventListener('change', () => {
         ensureLogEntry(key).habits[habit.id] = input.checked;
+        markUnsynced();
         saveState();
         refreshUI();
       });
@@ -284,6 +295,7 @@ function renderWeekTable() {
     note.value = ensureLogEntry(key).note || '';
     note.addEventListener('input', (e) => {
       ensureLogEntry(key).note = e.target.value;
+      markUnsynced();
       saveState();
     });
     noteCell.appendChild(note);
@@ -450,8 +462,16 @@ function updateSyncStatus(text) {
   el.textContent = text;
 }
 
+function markUnsynced() {
+  updateSyncStatus('Unsaved changes');
+}
+
 function attachHandlers() {
   document.getElementById('mark-today').addEventListener('click', markTodayPerfect);
+  document.getElementById('notes').addEventListener('input', () => {
+    document.getElementById('notes-status').textContent = 'Unsaved';
+    markUnsynced();
+  });
   document.getElementById('save-notes').addEventListener('click', () => {
     state.notes = document.getElementById('notes').value;
     document.getElementById('notes-status').textContent = 'Saved';
@@ -461,7 +481,7 @@ function attachHandlers() {
   document.getElementById('clear-data').addEventListener('click', () => {
     const confirmed = confirm('Clear all habit data? This cannot be undone.');
     if (!confirmed) return;
-    state = { habits: DEFAULT_HABITS, habitLog: {}, notes: '', lastSaved: null };
+    state = createDefaultState();
     saveState();
     refreshUI();
   });
@@ -479,12 +499,14 @@ function attachHandlers() {
     document.getElementById('habit-name').value = '';
     document.getElementById('habit-icon').value = '';
     document.getElementById('habit-category').value = '';
+    markUnsynced();
     saveState();
     refreshUI();
   });
 
   setInterval(() => {
     renderClock();
+    refreshUI();
   }, 1000 * 30);
 }
 
