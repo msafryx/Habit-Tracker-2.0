@@ -1,19 +1,20 @@
 # Habit Tracker 2.0
 
-Interactive, front-end-only habit tracker inspired by the shared design. Everything runs in the browser—no backend required—so you can log habits, view weekly/monthly progress, and celebrate streak milestones right away.
+A live, front-end habit tracker that uses real dates/times, updates weekly and monthly views automatically, and lets you add, edit, or delete any habit. Data is stored in your browser (localStorage) so changes persist without a backend.
 
 ## Features
-- **Daily logging:** Check off 10 core habits per day and add quick notes.
-- **Progress bars:** See completion percentages for each day, the current week, and the full month.
-- **Week overview:** Inline habit checkboxes with per-day progress, status pills, and notes.
-- **Monthly overview:** Daily cards plus weekly rollups to spot patterns at a glance.
+- **Real-time tracking:** Shows today’s date/time and recalculates week/month averages instantly.
+- **Daily logging:** Check off habits for each day and add inline notes.
+- **Weekly chart & rollups:** Visual progress for the current week plus averages.
+- **Monthly overview:** Daily completion bars across the current month.
 - **Streak milestones:** Automatic badges for perfect-day streaks (5–100 days).
-- **Notes & reflections:** Save longer-form notes alongside your daily logs.
-- **Demo data:** Pre-seeded sample data so the UI feels alive immediately, with the option to reset.
+- **Habit CRUD:** Add new habits, edit names/icons/categories, or delete ones you don’t need.
+- **Persistent sync:** All changes are saved automatically in `localStorage`.
 
 ## Getting started
-1. Open `index.html` in your browser to use the tracker (no build step needed).
-2. Click **Mark today as perfect** or toggle individual habit checkboxes to log progress.
-3. Use **Reset demo data** to restore the starter dataset.
+1. Open `index.html` in your browser (no build step required).
+2. Add your habits via the **Add habit** form, or keep the starter set.
+3. Check boxes in **Week overview** to log completions; stats and charts update immediately.
+4. Use **Clear all data** to reset everything to the starter configuration.
 
-All data is saved in `localStorage` under the `habit-tracker-2.0` key, so your edits persist between sessions in the same browser.
+Your data stays in the same browser where you use the app. To move it elsewhere, copy the `habit-tracker-2.0` value from DevTools → Application → Local Storage.

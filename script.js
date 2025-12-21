@@ -1,13 +1,13 @@
-const habits = [
+const DEFAULT_HABITS = [
   { id: 'water', name: '2L water', icon: '💧', category: 'Health' },
   { id: 'sleep', name: '7h sleep', icon: '💤', category: 'Health' },
   { id: 'deepWork', name: '4h deep work', icon: '💻', category: 'Productivity' },
   { id: 'journaling', name: 'Journaling', icon: '✍️', category: 'Mindset' },
   { id: 'reading', name: '20 min read', icon: '📚', category: 'Growth' },
   { id: 'steps', name: '10k steps', icon: '🚶‍♀️', category: 'Health' },
-  { id: 'gym', name: 'Gym/Strength', icon: '🏋️', category: 'Fitness' },
+  { id: 'gym', name: 'Strength training', icon: '🏋️', category: 'Fitness' },
   { id: 'meditation', name: 'Meditation', icon: '🧘‍♂️', category: 'Mindset' },
-  { id: 'nutrition', name: 'No junk food', icon: '🥗', category: 'Health' },
+  { id: 'nutrition', name: 'Nourishing meals', icon: '🥗', category: 'Health' },
   { id: 'social', name: 'Intentional reach-out', icon: '🤝', category: 'Relationships' },
 ];
 
@@ -23,8 +23,10 @@ const milestoneTargets = [
 const STORAGE_KEY = 'habit-tracker-2.0';
 
 let state = {
+  habits: DEFAULT_HABITS,
   habitLog: {},
   notes: '',
+  lastSaved: null,
 };
 
 function formatKey(date) {
@@ -35,11 +37,12 @@ function displayLabel(date) {
   return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
 }
 
-function getCurrentWeekDates() {
-  const today = new Date();
+function getCurrentWeekDates(reference = new Date()) {
+  const today = new Date(reference);
   const day = today.getDay();
   const diff = today.getDate() - day + (day === 0 ? -6 : 1); // Monday start
   const monday = new Date(today.setDate(diff));
+  monday.setHours(12, 0, 0, 0);
   return Array.from({ length: 7 }, (_, i) => {
     const d = new Date(monday);
     d.setDate(monday.getDate() + i);
@@ -48,8 +51,8 @@ function getCurrentWeekDates() {
   });
 }
 
-function getMonthDates() {
-  const now = new Date();
+function getMonthDates(reference = new Date()) {
+  const now = new Date(reference);
   const year = now.getFullYear();
   const month = now.getMonth();
   const lastDay = new Date(year, month + 1, 0).getDate();
@@ -60,13 +63,10 @@ function getMonthDates() {
   });
 }
 
-function ensureLogEntry(key) {
-  if (!state.habitLog[key]) {
-    const defaults = {};
-    habits.forEach((h) => (defaults[h.id] = false));
-    state.habitLog[key] = { habits: defaults, note: '' };
-  }
-  return state.habitLog[key];
+function saveState() {
+  state.lastSaved = new Date().toISOString();
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  updateSyncStatus('Synced');
 }
 
 function loadState() {
@@ -74,61 +74,45 @@ function loadState() {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
       state = JSON.parse(saved);
-      return;
+    } else {
+      state = { habits: DEFAULT_HABITS, habitLog: {}, notes: '', lastSaved: null };
     }
   } catch (err) {
-    console.warn('No saved data, using demo seed.', err);
+    console.warn('Falling back to defaults', err);
+    state = { habits: DEFAULT_HABITS, habitLog: {}, notes: '', lastSaved: null };
   }
-  seedDemoState();
+
+  // ensure all logs have all habits
+  Object.keys(state.habitLog).forEach((key) => ensureLogEntry(key));
 }
 
-function saveState() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-}
-
-function seedDemoState() {
-  state = { habitLog: {}, notes: 'Focus on closing all rings on Wednesday and Sunday this week.' };
-  const monthDates = getMonthDates();
-  const sampleWeights = [0.2, 0.35, 0.5, 0.65, 0.75, 0.9, 1];
-
-  monthDates.forEach((date, idx) => {
-    const key = formatKey(date);
-    const log = ensureLogEntry(key);
-    const target = sampleWeights[idx % sampleWeights.length];
-    habits.forEach((h, hIdx) => {
-      const completionChance = target - (hIdx % 3) * 0.08;
-      log.habits[h.id] = Math.random() < Math.max(0, completionChance);
-    });
-    if (idx % 5 === 0) {
-      log.note = 'Energy high; leaned into deep work and gym.';
+function ensureLogEntry(key) {
+  if (!state.habitLog[key]) {
+    state.habitLog[key] = { habits: {}, note: '' };
+  }
+  state.habits.forEach((habit) => {
+    if (state.habitLog[key].habits[habit.id] === undefined) {
+      state.habitLog[key].habits[habit.id] = false;
     }
-    if (idx % 6 === 0) {
-      log.note = 'Travel day, kept it light.';
-    }
-    state.habitLog[key] = log;
   });
-  saveState();
+  return state.habitLog[key];
 }
 
 function calculateDailyProgress(key) {
   const log = ensureLogEntry(key);
-  const total = habits.length;
-  const completed = habits.filter((h) => log.habits[h.id]).length;
+  if (!state.habits.length) {
+    return { completed: 0, total: 0, percent: 0, perfect: false };
+  }
+  const total = state.habits.length;
+  const completed = state.habits.filter((h) => log.habits[h.id]).length;
   const percent = Math.round((completed / total) * 100);
   return { completed, total, percent, perfect: completed === total };
 }
 
-function computeWeekAverage(weekKeys) {
-  const scores = weekKeys.map((key) => calculateDailyProgress(key).percent);
-  const average = scores.reduce((a, b) => a + b, 0) / scores.length;
-  return Math.round(average);
-}
-
-function computeMonthAverage() {
-  const monthKeys = getMonthDates().map(formatKey);
-  const scores = monthKeys.map((key) => calculateDailyProgress(key).percent);
-  const average = scores.reduce((a, b) => a + b, 0) / monthKeys.length;
-  return Math.round(average);
+function computeAverage(keys) {
+  if (!keys.length) return 0;
+  const scores = keys.map((key) => calculateDailyProgress(key).percent);
+  return Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
 }
 
 function currentPerfectStreak() {
@@ -167,23 +151,56 @@ function longestPerfectStreak() {
 function renderHabitList() {
   const list = document.getElementById('habit-list');
   list.innerHTML = '';
-  habits.forEach((habit) => {
+  state.habits.forEach((habit) => {
     const item = document.createElement('li');
     item.className = 'habit-item';
 
-    item.innerHTML = `
-      <div class="habit-meta">
-        <div class="icon">${habit.icon}</div>
-        <div>
-          <div class="day-label">${habit.name}</div>
-          <p class="caption">${habit.category}</p>
-        </div>
+    const meta = document.createElement('div');
+    meta.className = 'habit-meta';
+    meta.innerHTML = `
+      <div class="icon">${habit.icon || '•'}</div>
+      <div>
+        <div class="day-label">${habit.name}</div>
+        <p class="caption">${habit.category || 'General'}</p>
       </div>
-      <span class="tag neutral">Track</span>
     `;
+
+    const actions = document.createElement('div');
+    actions.className = 'habit-actions';
+    const editBtn = document.createElement('button');
+    editBtn.className = 'ghost';
+    editBtn.textContent = 'Edit';
+    editBtn.addEventListener('click', () => {
+      const newName = prompt('Update habit name', habit.name) || habit.name;
+      const newIcon = prompt('Update icon', habit.icon) || habit.icon;
+      const newCat = prompt('Update category', habit.category) || habit.category;
+      habit.name = newName.trim();
+      habit.icon = newIcon.trim();
+      habit.category = newCat.trim();
+      saveState();
+      refreshUI();
+    });
+
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'ghost';
+    deleteBtn.textContent = 'Delete';
+    deleteBtn.addEventListener('click', () => {
+      const confirmed = confirm(`Delete habit "${habit.name}"? Data for it will be removed.`);
+      if (!confirmed) return;
+      state.habits = state.habits.filter((h) => h.id !== habit.id);
+      Object.values(state.habitLog).forEach((entry) => {
+        delete entry.habits[habit.id];
+      });
+      saveState();
+      refreshUI();
+    });
+
+    actions.append(editBtn, deleteBtn);
+    item.append(meta, actions);
     list.appendChild(item);
   });
-  document.getElementById('habit-count').textContent = habits.length;
+  document.getElementById('habit-count').textContent = state.habits.length;
+  document.getElementById('habit-total-tag').textContent = `${state.habits.length} habits`;
 }
 
 function renderWeekTable() {
@@ -194,7 +211,7 @@ function renderWeekTable() {
   header.className = 'row header';
   header.innerHTML = `
     <div class="cell">Date</div>
-    <div class="cell">Habits (tap to log)</div>
+    <div class="cell">Habits (check to log)</div>
     <div class="cell">Daily status</div>
     <div class="cell">Notes</div>
   `;
@@ -223,7 +240,7 @@ function renderWeekTable() {
     const checks = document.createElement('div');
     checks.className = 'habit-checkboxes';
 
-    habits.forEach((habit) => {
+    state.habits.forEach((habit) => {
       const wrapper = document.createElement('label');
       wrapper.className = 'habit-check';
       const input = document.createElement('input');
@@ -234,9 +251,9 @@ function renderWeekTable() {
         saveState();
         refreshUI();
       });
-      wrapper.appendChild(input);
       const text = document.createElement('span');
-      text.textContent = `${habit.icon} ${habit.name}`;
+      text.textContent = `${habit.icon || '•'} ${habit.name}`;
+      wrapper.appendChild(input);
       wrapper.appendChild(text);
       checks.appendChild(wrapper);
     });
@@ -324,7 +341,7 @@ function renderWeekRollup() {
   for (let i = 0; i < dates.length; i += 7) {
     const chunk = dates.slice(i, i + 7);
     const keys = chunk.map(formatKey);
-    const avg = computeWeekAverage(keys);
+    const avg = computeAverage(keys);
     const roll = document.createElement('div');
     roll.className = 'rollup-card';
     const rangeLabel = `${chunk[0].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${chunk[chunk.length - 1].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
@@ -375,8 +392,8 @@ function renderMilestones() {
 
 function renderStats() {
   const weekKeys = getCurrentWeekDates().map(formatKey);
-  const weekAverage = computeWeekAverage(weekKeys);
-  const monthAverage = computeMonthAverage();
+  const weekAverage = computeAverage(weekKeys);
+  const monthAverage = computeAverage(getMonthDates().map(formatKey));
   document.getElementById('week-progress').textContent = `${weekAverage}%`;
   document.getElementById('month-progress').textContent = `${monthAverage}%`;
   document.getElementById('week-progress-bar').style.width = `${weekAverage}%`;
@@ -389,6 +406,13 @@ function renderNotes() {
   document.getElementById('notes-status').textContent = state.notes ? 'Saved' : 'Unsaved';
 }
 
+function renderClock() {
+  const now = new Date();
+  const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+  const time = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  document.getElementById('current-datetime').textContent = `${now.toLocaleDateString('en-US', options)} · ${time}`;
+}
+
 function refreshUI() {
   renderHabitList();
   renderWeekTable();
@@ -398,26 +422,15 @@ function refreshUI() {
   renderMilestones();
   renderStats();
   renderNotes();
-  saveState();
+  renderClock();
 }
 
 function markTodayPerfect() {
   const todayKey = formatKey(new Date());
   const log = ensureLogEntry(todayKey);
-  habits.forEach((h) => (log.habits[h.id] = true));
+  state.habits.forEach((h) => (log.habits[h.id] = true));
   log.note = log.note || 'Marked as perfect day.';
-  refreshUI();
-}
-
-function logNextHabit() {
-  const todayKey = formatKey(new Date());
-  const log = ensureLogEntry(todayKey);
-  const next = habits.find((h) => !log.habits[h.id]);
-  if (next) {
-    log.habits[next.id] = true;
-  } else {
-    habits.forEach((h) => (log.habits[h.id] = false));
-  }
+  saveState();
   refreshUI();
 }
 
@@ -432,22 +445,54 @@ function focusTodayNote() {
   }
 }
 
+function updateSyncStatus(text) {
+  const el = document.getElementById('sync-status');
+  el.textContent = text;
+}
+
 function attachHandlers() {
   document.getElementById('mark-today').addEventListener('click', markTodayPerfect);
-  document.getElementById('log-habits').addEventListener('click', logNextHabit);
-  document.getElementById('add-note').addEventListener('click', focusTodayNote);
   document.getElementById('save-notes').addEventListener('click', () => {
     state.notes = document.getElementById('notes').value;
     document.getElementById('notes-status').textContent = 'Saved';
+    saveState();
     refreshUI();
   });
-  document.getElementById('reset-data').addEventListener('click', () => {
-    localStorage.removeItem(STORAGE_KEY);
-    seedDemoState();
+  document.getElementById('clear-data').addEventListener('click', () => {
+    const confirmed = confirm('Clear all habit data? This cannot be undone.');
+    if (!confirmed) return;
+    state = { habits: DEFAULT_HABITS, habitLog: {}, notes: '', lastSaved: null };
+    saveState();
     refreshUI();
   });
+  document.getElementById('habit-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const name = document.getElementById('habit-name').value.trim();
+    const icon = document.getElementById('habit-icon').value.trim() || '•';
+    const category = document.getElementById('habit-category').value.trim() || 'General';
+    if (!name) return;
+    const id = `${name.toLowerCase().replace(/\s+/g, '-')}-${Date.now()}`;
+    state.habits.push({ id, name, icon, category });
+    Object.keys(state.habitLog).forEach((key) => {
+      ensureLogEntry(key).habits[id] = false;
+    });
+    document.getElementById('habit-name').value = '';
+    document.getElementById('habit-icon').value = '';
+    document.getElementById('habit-category').value = '';
+    saveState();
+    refreshUI();
+  });
+
+  setInterval(() => {
+    renderClock();
+  }, 1000 * 30);
 }
 
-loadState();
-attachHandlers();
-refreshUI();
+function init() {
+  loadState();
+  attachHandlers();
+  refreshUI();
+  updateSyncStatus('Synced');
+}
+
+init();

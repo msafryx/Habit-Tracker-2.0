@@ -16,12 +16,16 @@
       <div>
         <p class="eyebrow">Habit Tracker</p>
         <h1>Habit Tracker 2.0</h1>
-        <p class="lede">Plan your perfect day, log your wins, and watch the streaks stack up.</p>
+        <p class="lede">A real-time habit system with live dates, weekly and monthly rollups, and full CRUD for your routines.</p>
       </div>
     </div>
     <div class="header-actions">
-      <button class="primary" id="mark-today">Mark today as perfect</button>
-      <button class="ghost" id="reset-data">Reset demo data</button>
+      <div class="clock">
+        <p class="label">Today</p>
+        <div class="clock-time" id="current-datetime">--</div>
+      </div>
+      <button class="primary" id="mark-today">Mark today perfect</button>
+      <button class="ghost" id="clear-data">Clear all data</button>
     </div>
   </header>
 
@@ -29,12 +33,12 @@
     <div class="stat-card">
       <p class="label">Current streak</p>
       <div class="stat-value" id="current-streak">0 days</div>
-      <p class="caption">Based on perfect days this month.</p>
+      <p class="caption">Perfect-day streak in this month.</p>
     </div>
     <div class="stat-card">
       <p class="label">Habits tracked</p>
       <div class="stat-value" id="habit-count">0</div>
-      <p class="caption">Productivity, health, and growth.</p>
+      <p class="caption">Add, edit, or delete habits any time.</p>
     </div>
     <div class="stat-card">
       <p class="label">Week completion</p>
@@ -42,7 +46,7 @@
       <div class="progress-shell">
         <div class="progress-bar" id="week-progress-bar"></div>
       </div>
-      <p class="caption">Average across the current week.</p>
+      <p class="caption">Live average across this week.</p>
     </div>
     <div class="stat-card">
       <p class="label">Month completion</p>
@@ -50,7 +54,7 @@
       <div class="progress-shell">
         <div class="progress-bar" id="month-progress-bar"></div>
       </div>
-      <p class="caption">Average across this month.</p>
+      <p class="caption">Live average across this month.</p>
     </div>
   </section>
 
@@ -60,41 +64,51 @@
         <div>
           <p class="eyebrow">Daily logging</p>
           <h2>Week overview</h2>
-          <p class="caption">Check off today’s habits and capture quick notes. Progress updates instantly.</p>
+          <p class="caption">Check off today’s habits and add notes. Everything updates instantly across the dashboard.</p>
         </div>
         <div class="panel-actions">
-          <button class="primary" id="log-habits">Log habits</button>
-          <button class="ghost" id="add-note">Add note</button>
+          <span class="sync" id="sync-status">Synced</span>
         </div>
       </div>
-      <div class="table" id="week-table">
-        <!-- dynamically rendered -->
-      </div>
+      <div class="table" id="week-table"></div>
     </section>
 
     <aside class="panel side">
       <div class="panel-header compact">
         <div>
-          <p class="eyebrow">Core habits</p>
-          <h3>Habit list</h3>
+          <p class="eyebrow">Manage habits</p>
+          <h3>Create / edit / delete</h3>
         </div>
-        <span class="tag neutral">10 habits</span>
       </div>
-      <ul class="habit-list" id="habit-list"></ul>
+
+      <form id="habit-form" class="habit-form">
+        <div class="field">
+          <label for="habit-name">Habit name</label>
+          <input id="habit-name" type="text" placeholder="e.g., 10k steps" required />
+        </div>
+        <div class="field grouped">
+          <div>
+            <label for="habit-icon">Icon</label>
+            <input id="habit-icon" type="text" placeholder="🚶" maxlength="4" />
+          </div>
+          <div>
+            <label for="habit-category">Category</label>
+            <input id="habit-category" type="text" placeholder="Health" />
+          </div>
+        </div>
+        <button class="primary" type="submit">Add habit</button>
+      </form>
 
       <div class="divider"></div>
 
       <div class="panel-header compact">
         <div>
-          <p class="eyebrow">Tips</p>
-          <h3>Customization</h3>
+          <p class="eyebrow">Current list</p>
+          <h3>Tap to update</h3>
         </div>
+        <span class="tag neutral" id="habit-total-tag">0 habits</span>
       </div>
-      <ul class="tips">
-        <li>To add your habits: edit an existing habit name.</li>
-        <li>Tracking more than 10 habits? Update the progress formula in <span class="mono">script.js</span>.</li>
-        <li>Perfect day = all habits completed.</li>
-      </ul>
+      <ul class="habit-list" id="habit-list"></ul>
     </aside>
   </main>
 
@@ -103,7 +117,7 @@
       <div>
         <p class="eyebrow">Performance</p>
         <h2>Weekly progress chart</h2>
-        <p class="caption">See how each day stacks up and where to double down.</p>
+        <p class="caption">Every day this week, with real completion percentages.</p>
       </div>
     </div>
     <div class="progress-grid" id="weekly-chart"></div>
@@ -114,7 +128,7 @@
       <div>
         <p class="eyebrow">Overview</p>
         <h2>Monthly overview</h2>
-        <p class="caption">Track the full month with daily completion bars and week rollups.</p>
+        <p class="caption">Track the full month with daily completion bars and weekly rollups.</p>
       </div>
     </div>
     <div class="month-layout">
@@ -152,7 +166,7 @@
   </section>
 
   <footer class="footer">
-    <p>Built for teams who want clarity, consistency, and momentum.</p>
+    <p>Data is saved locally and stays in sync as you add, edit, or delete habits.</p>
   </footer>
 
   <script src="script.js"></script>
