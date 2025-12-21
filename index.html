@@ -96,7 +96,8 @@
             <input id="habit-category" type="text" placeholder="Health" />
           </div>
         </div>
-        <button class="primary" type="submit">Add habit</button>
+        <button class="primary" type="submit" id="habit-submit">Add habit</button>
+        <button class="ghost" type="button" id="cancel-edit" hidden>Cancel edit</button>
       </form>
 
       <div class="divider"></div>
@@ -140,6 +141,17 @@
   <section class="panel">
     <div class="panel-header">
       <div>
+        <p class="eyebrow">Annual</p>
+        <h2>Annual overview</h2>
+        <p class="caption">Click any month to inspect its daily progress and streak highlights.</p>
+      </div>
+    </div>
+    <div class="annual-grid" id="annual-grid"></div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-header">
+      <div>
         <p class="eyebrow">Momentum</p>
         <h2>Streak milestones</h2>
         <p class="caption">Celebrate perfect days and unlock badges as your streak grows.</p>
@@ -168,6 +180,22 @@
   <footer class="footer">
     <p>Data is saved locally and stays in sync as you add, edit, or delete habits.</p>
   </footer>
+
+  <div class="modal-backdrop" id="month-modal" hidden>
+    <div class="modal">
+      <div class="modal-header">
+        <div>
+          <p class="eyebrow">Month detail</p>
+          <h3 id="modal-month-label">Month</h3>
+          <p class="caption" id="modal-month-summary">--</p>
+        </div>
+        <button class="ghost" id="close-modal">Close</button>
+      </div>
+      <div class="modal-content">
+        <div class="modal-days" id="modal-days"></div>
+      </div>
+    </div>
+  </div>
 
   <script src="script.js"></script>
 </body>

@@ -23,6 +23,7 @@ const milestoneTargets = [
 const STORAGE_KEY = 'habit-tracker-2.0';
 
 let state = createDefaultState();
+let editingHabitId = null;
 
 function createDefaultState() {
   return {
@@ -123,6 +124,22 @@ function computeAverage(keys) {
   return Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
 }
 
+function computeMonthAverageFor(monthIndex) {
+  const now = new Date();
+  const year = now.getFullYear();
+  const dates = Array.from({ length: new Date(year, monthIndex + 1, 0).getDate() }, (_, i) => {
+    const d = new Date(year, monthIndex, i + 1);
+    d.setHours(12, 0, 0, 0);
+    return d;
+  });
+  const keys = dates.map(formatKey);
+  return computeAverage(keys);
+}
+
+function monthName(idx) {
+  return new Date(2000, idx, 1).toLocaleString('en-US', { month: 'long' });
+}
+
 function currentPerfectStreak() {
   const monthKeys = getMonthDates().map(formatKey);
   const todayKey = formatKey(new Date());
@@ -178,17 +195,7 @@ function renderHabitList() {
     const editBtn = document.createElement('button');
     editBtn.className = 'ghost';
     editBtn.textContent = 'Edit';
-    editBtn.addEventListener('click', () => {
-      const newName = prompt('Update habit name', habit.name) || habit.name;
-      const newIcon = prompt('Update icon', habit.icon) || habit.icon;
-      const newCat = prompt('Update category', habit.category) || habit.category;
-      habit.name = newName.trim();
-      habit.icon = newIcon.trim();
-      habit.category = newCat.trim();
-      markUnsynced();
-      saveState();
-      refreshUI();
-    });
+    editBtn.addEventListener('click', () => startEditHabit(habit));
 
     const deleteBtn = document.createElement('button');
     deleteBtn.className = 'ghost';
@@ -346,6 +353,61 @@ function renderMonthGrid() {
   });
 }
 
+function renderAnnualGrid() {
+  const grid = document.getElementById('annual-grid');
+  if (!grid) return;
+  grid.innerHTML = '';
+  for (let i = 0; i < 12; i += 1) {
+    const percent = computeMonthAverageFor(i);
+    const card = document.createElement('div');
+    card.className = 'annual-card';
+    card.dataset.month = i;
+    card.innerHTML = `
+      <div class="month-name">${monthName(i)}</div>
+      <div class="caption">${percent}% complete</div>
+      <div class="mini-bar"><div class="mini-fill" style="width:${percent}%"></div></div>
+    `;
+    card.addEventListener('click', () => openMonthModal(i));
+    grid.appendChild(card);
+  }
+}
+
+function openMonthModal(monthIndex) {
+  const backdrop = document.getElementById('month-modal');
+  const label = document.getElementById('modal-month-label');
+  const summary = document.getElementById('modal-month-summary');
+  const list = document.getElementById('modal-days');
+  const percent = computeMonthAverageFor(monthIndex);
+  label.textContent = monthName(monthIndex);
+  summary.textContent = `${percent}% average completion`;
+  list.innerHTML = '';
+
+  const now = new Date();
+  const year = now.getFullYear();
+  const lastDay = new Date(year, monthIndex + 1, 0).getDate();
+  for (let day = 1; day <= lastDay; day += 1) {
+    const d = new Date(year, monthIndex, day);
+    d.setHours(12, 0, 0, 0);
+    const key = formatKey(d);
+    const progress = calculateDailyProgress(key);
+    const item = document.createElement('div');
+    item.className = 'modal-day';
+    item.innerHTML = `
+      <div class="date">${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</div>
+      <div class="caption">${progress.completed}/${progress.total || state.habits.length} habits</div>
+      <div class="progress-shell" style="margin-top:6px;"><div class="progress-bar" style="width:${progress.percent}%"></div></div>
+      <div class="caption" style="margin-top:6px;">${progress.percent}% complete</div>
+    `;
+    list.appendChild(item);
+  }
+  backdrop.hidden = false;
+}
+
+function closeMonthModal() {
+  const backdrop = document.getElementById('month-modal');
+  if (backdrop) backdrop.hidden = true;
+}
+
 function renderWeekRollup() {
   const weeks = document.getElementById('week-rollup');
   weeks.innerHTML = '';
@@ -430,6 +492,7 @@ function refreshUI() {
   renderWeekTable();
   renderWeeklyChart();
   renderMonthGrid();
+  renderAnnualGrid();
   renderWeekRollup();
   renderMilestones();
   renderStats();
@@ -466,6 +529,24 @@ function markUnsynced() {
   updateSyncStatus('Unsaved changes');
 }
 
+function resetHabitForm() {
+  editingHabitId = null;
+  document.getElementById('habit-name').value = '';
+  document.getElementById('habit-icon').value = '';
+  document.getElementById('habit-category').value = '';
+  document.getElementById('habit-submit').textContent = 'Add habit';
+  document.getElementById('cancel-edit').hidden = true;
+}
+
+function startEditHabit(habit) {
+  editingHabitId = habit.id;
+  document.getElementById('habit-name').value = habit.name;
+  document.getElementById('habit-icon').value = habit.icon;
+  document.getElementById('habit-category').value = habit.category;
+  document.getElementById('habit-submit').textContent = 'Save changes';
+  document.getElementById('cancel-edit').hidden = false;
+}
+
 function attachHandlers() {
   document.getElementById('mark-today').addEventListener('click', markTodayPerfect);
   document.getElementById('notes').addEventListener('input', () => {
@@ -491,18 +572,36 @@ function attachHandlers() {
     const icon = document.getElementById('habit-icon').value.trim() || '•';
     const category = document.getElementById('habit-category').value.trim() || 'General';
     if (!name) return;
-    const id = `${name.toLowerCase().replace(/\s+/g, '-')}-${Date.now()}`;
-    state.habits.push({ id, name, icon, category });
-    Object.keys(state.habitLog).forEach((key) => {
-      ensureLogEntry(key).habits[id] = false;
-    });
-    document.getElementById('habit-name').value = '';
-    document.getElementById('habit-icon').value = '';
-    document.getElementById('habit-category').value = '';
+    if (editingHabitId) {
+      const target = state.habits.find((h) => h.id === editingHabitId);
+      if (target) {
+        target.name = name;
+        target.icon = icon;
+        target.category = category;
+      }
+    } else {
+      const id = `${name.toLowerCase().replace(/\s+/g, '-')}-${Date.now()}`;
+      state.habits.push({ id, name, icon, category });
+      Object.keys(state.habitLog).forEach((key) => {
+        ensureLogEntry(key).habits[id] = false;
+      });
+    }
+    resetHabitForm();
     markUnsynced();
     saveState();
     refreshUI();
   });
+  document.getElementById('cancel-edit').addEventListener('click', () => {
+    resetHabitForm();
+  });
+  const modalBackdrop = document.getElementById('month-modal');
+  if (modalBackdrop) {
+    modalBackdrop.addEventListener('click', (event) => {
+      if (event.target === modalBackdrop) closeMonthModal();
+    });
+  }
+  const closeModalBtn = document.getElementById('close-modal');
+  if (closeModalBtn) closeModalBtn.addEventListener('click', closeMonthModal);
 
   setInterval(() => {
     renderClock();

@@ -7,8 +7,9 @@ A live, front-end habit tracker that uses real dates/times, updates weekly and m
 - **Daily logging:** Check off habits for each day and add inline notes.
 - **Weekly chart & rollups:** Visual progress for the current week plus averages.
 - **Monthly overview:** Daily completion bars across the current month.
+- **Annual overview:** Month-by-month cards with click-through daily detail.
 - **Streak milestones:** Automatic badges for perfect-day streaks (5–100 days).
-- **Habit CRUD:** Add new habits, edit names/icons/categories, or delete ones you don’t need.
+- **Habit CRUD:** Add new habits, edit names/icons/categories inline, or delete ones you don’t need.
 - **Persistent sync:** All changes are saved automatically in `localStorage`.
 
 ## Getting started
