@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Habit Tracker 2.0</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="page-header">
+    <div class="brand">
+      <div class="dot"></div>
+      <div>
+        <p class="eyebrow">Habit Tracker</p>
+        <h1>Habit Tracker 2.0</h1>
+        <p class="lede">A real-time habit system with live dates, weekly and monthly rollups, and full CRUD for your routines.</p>
+      </div>
+    </div>
+    <div class="header-actions">
+      <div class="clock">
+        <p class="label">Today</p>
+        <div class="clock-time" id="current-datetime">--</div>
+      </div>
+      <button class="primary" id="mark-today">Mark today perfect</button>
+      <button class="ghost" id="clear-data">Clear all data</button>
+    </div>
+  </header>
+
+  <section class="info-grid">
+    <div class="stat-card">
+      <p class="label">Current streak</p>
+      <div class="stat-value" id="current-streak">0 days</div>
+      <p class="caption">Perfect-day streak in this month.</p>
+    </div>
+    <div class="stat-card">
+      <p class="label">Habits tracked</p>
+      <div class="stat-value" id="habit-count">0</div>
+      <p class="caption">Add, edit, or delete habits any time.</p>
+    </div>
+    <div class="stat-card">
+      <p class="label">Week completion</p>
+      <div class="stat-value" id="week-progress">0%</div>
+      <div class="progress-shell">
+        <div class="progress-bar" id="week-progress-bar"></div>
+      </div>
+      <p class="caption">Live average across this week.</p>
+    </div>
+    <div class="stat-card">
+      <p class="label">Month completion</p>
+      <div class="stat-value" id="month-progress">0%</div>
+      <div class="progress-shell">
+        <div class="progress-bar" id="month-progress-bar"></div>
+      </div>
+      <p class="caption">Live average across this month.</p>
+    </div>
+  </section>
+
+  <main class="layout">
+    <section class="panel">
+      <div class="panel-header">
+        <div>
+          <p class="eyebrow">Daily logging</p>
+          <h2>Week overview</h2>
+          <p class="caption">Check off today’s habits and add notes. Everything updates instantly across the dashboard.</p>
+        </div>
+        <div class="panel-actions">
+          <span class="sync" id="sync-status">Synced</span>
+        </div>
+      </div>
+      <div class="table" id="week-table"></div>
+    </section>
+
+    <aside class="panel side">
+      <div class="panel-header compact">
+        <div>
+          <p class="eyebrow">Manage habits</p>
+          <h3>Create / edit / delete</h3>
+        </div>
+      </div>
+
+      <form id="habit-form" class="habit-form">
+        <div class="field">
+          <label for="habit-name">Habit name</label>
+          <input id="habit-name" type="text" placeholder="e.g., 10k steps" required />
+        </div>
+        <div class="field grouped">
+          <div>
+            <label for="habit-icon">Icon</label>
+            <input id="habit-icon" type="text" placeholder="🚶" maxlength="4" />
+          </div>
+          <div>
+            <label for="habit-category">Category</label>
+            <input id="habit-category" type="text" placeholder="Health" />
+          </div>
+        </div>
+        <button class="primary" type="submit">Add habit</button>
+      </form>
+
+      <div class="divider"></div>
+
+      <div class="panel-header compact">
+        <div>
+          <p class="eyebrow">Current list</p>
+          <h3>Tap to update</h3>
+        </div>
+        <span class="tag neutral" id="habit-total-tag">0 habits</span>
+      </div>
+      <ul class="habit-list" id="habit-list"></ul>
+    </aside>
+  </main>
+
+  <section class="panel">
+    <div class="panel-header">
+      <div>
+        <p class="eyebrow">Performance</p>
+        <h2>Weekly progress chart</h2>
+        <p class="caption">Every day this week, with real completion percentages.</p>
+      </div>
+    </div>
+    <div class="progress-grid" id="weekly-chart"></div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-header">
+      <div>
+        <p class="eyebrow">Overview</p>
+        <h2>Monthly overview</h2>
+        <p class="caption">Track the full month with daily completion bars and weekly rollups.</p>
+      </div>
+    </div>
+    <div class="month-layout">
+      <div class="month-grid" id="month-grid"></div>
+      <div class="week-rollup" id="week-rollup"></div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-header">
+      <div>
+        <p class="eyebrow">Momentum</p>
+        <h2>Streak milestones</h2>
+        <p class="caption">Celebrate perfect days and unlock badges as your streak grows.</p>
+      </div>
+    </div>
+    <div class="milestones" id="milestones"></div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-header">
+      <div>
+        <p class="eyebrow">Notes</p>
+        <h2>Notes & reflections</h2>
+        <p class="caption">Capture highlights, blockers, or tweaks you want to try.</p>
+      </div>
+    </div>
+    <div class="notes-area">
+      <textarea id="notes" placeholder="Jot down insights, wins, or ideas to improve your routines."></textarea>
+      <div class="notes-actions">
+        <button class="primary" id="save-notes">Save notes</button>
+        <span class="caption" id="notes-status">Unsaved</span>
+      </div>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <p>Data is saved locally and stays in sync as you add, edit, or delete habits.</p>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>
