@@ -103,16 +103,54 @@
           <div class="field grouped">
             <div>
               <label for="habit-icon">Icon</label>
-              <input
-                id="habit-icon"
-                type="text"
-                placeholder="🚶"
-                maxlength="4"
-              />
+              <div class="icon-selector-wrapper">
+                <input
+                  id="habit-icon"
+                  type="text"
+                  placeholder="Choose or type emoji"
+                  maxlength="4"
+                  readonly
+                />
+                <button type="button" class="icon-picker-btn" id="open-icon-picker">🎨</button>
+              </div>
+              <div class="emoji-picker" id="emoji-picker" hidden>
+                <div class="emoji-categories">
+                  <button type="button" class="emoji-category-btn active" data-category="all">All</button>
+                  <button type="button" class="emoji-category-btn" data-category="health">Health</button>
+                  <button type="button" class="emoji-category-btn" data-category="fitness">Fitness</button>
+                  <button type="button" class="emoji-category-btn" data-category="productivity">Work</button>
+                  <button type="button" class="emoji-category-btn" data-category="mindset">Mind</button>
+                  <button type="button" class="emoji-category-btn" data-category="food">Food</button>
+                  <button type="button" class="emoji-category-btn" data-category="social">Social</button>
+                </div>
+                <div class="emoji-grid" id="emoji-grid"></div>
+              </div>
             </div>
             <div>
               <label for="habit-category">Category</label>
-              <input id="habit-category" type="text" placeholder="Health" />
+              <div class="category-selector-wrapper">
+                <select id="habit-category" class="category-select">
+                  <option value="">Select category</option>
+                  <option value="Health">Health</option>
+                  <option value="Fitness">Fitness</option>
+                  <option value="Productivity">Productivity</option>
+                  <option value="Mindset">Mindset</option>
+                  <option value="Growth">Growth</option>
+                  <option value="Relationships">Relationships</option>
+                  <option value="Finance">Finance</option>
+                  <option value="Learning">Learning</option>
+                  <option value="Creative">Creative</option>
+                  <option value="Other">Other</option>
+                  <option value="__custom__">+ Add Custom</option>
+                </select>
+                <input
+                  id="habit-category-custom"
+                  type="text"
+                  placeholder="Enter custom category"
+                  class="category-custom-input"
+                  hidden
+                />
+              </div>
             </div>
           </div>
           <button class="primary" type="submit" id="habit-submit">
