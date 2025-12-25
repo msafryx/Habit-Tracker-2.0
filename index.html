@@ -71,120 +71,130 @@
             <p class="eyebrow">Daily logging</p>
             <h2>Week overview</h2>
             <p class="caption">
-              Check off today’s habits and add notes. Everything updates
+              Check off today's habits and add notes. Everything updates
               instantly across the dashboard.
             </p>
           </div>
           <div class="panel-actions">
             <span class="sync" id="sync-status">Synced</span>
+            <button class="primary" id="open-habit-manager">Manage Habits</button>
           </div>
         </div>
         <div class="table" id="week-table"></div>
       </section>
 
-      <aside class="panel side">
-        <div class="panel-header compact">
+      <section class="panel">
+        <div class="panel-header">
+          <div>
+            <p class="eyebrow">Performance</p>
+            <h2>Weekly progress chart</h2>
+            <p class="caption">
+              Every day this week, with real completion percentages.
+            </p>
+          </div>
+        </div>
+        <div class="progress-grid" id="weekly-chart"></div>
+      </section>
+    </main>
+
+    <!-- Habit Manager Modal -->
+    <div class="modal-backdrop" id="habit-manager-modal" hidden>
+      <div class="modal habit-manager-modal">
+        <div class="modal-header">
           <div>
             <p class="eyebrow">Manage habits</p>
             <h3>Create / edit / delete</h3>
+            <p class="caption">Add, edit, or delete your habits</p>
           </div>
+          <button class="ghost" id="close-habit-manager">Close</button>
         </div>
-
-        <form id="habit-form" class="habit-form">
-          <div class="field">
-            <label for="habit-name">Habit name</label>
-            <input
-              id="habit-name"
-              type="text"
-              placeholder="e.g., 10k steps"
-              required
-            />
-          </div>
-          <div class="field grouped">
-            <div>
-              <label for="habit-icon">Icon</label>
-              <div class="icon-selector-wrapper">
-                <input
-                  id="habit-icon"
-                  type="text"
-                  placeholder="Choose or type emoji"
-                  maxlength="4"
-                  readonly
-                />
-                <button type="button" class="icon-picker-btn" id="open-icon-picker">🎨</button>
-              </div>
-              <div class="emoji-picker" id="emoji-picker" hidden>
-                <div class="emoji-categories">
-                  <button type="button" class="emoji-category-btn active" data-category="all">All</button>
-                  <button type="button" class="emoji-category-btn" data-category="health">Health</button>
-                  <button type="button" class="emoji-category-btn" data-category="fitness">Fitness</button>
-                  <button type="button" class="emoji-category-btn" data-category="productivity">Work</button>
-                  <button type="button" class="emoji-category-btn" data-category="mindset">Mind</button>
-                  <button type="button" class="emoji-category-btn" data-category="food">Food</button>
-                  <button type="button" class="emoji-category-btn" data-category="social">Social</button>
+        <div class="modal-content">
+          <form id="habit-form" class="habit-form">
+            <div class="field">
+              <label for="habit-name">Habit name</label>
+              <input
+                id="habit-name"
+                type="text"
+                placeholder="e.g., 10k steps"
+                required
+              />
+            </div>
+            <div class="field grouped">
+              <div>
+                <label for="habit-icon">Icon</label>
+                <div class="icon-selector-wrapper">
+                  <input
+                    id="habit-icon"
+                    type="text"
+                    placeholder="Choose or type emoji"
+                    maxlength="4"
+                    readonly
+                  />
+                  <button type="button" class="icon-picker-btn" id="open-icon-picker">🎨</button>
                 </div>
-                <div class="emoji-grid" id="emoji-grid"></div>
+              </div>
+              <div>
+                <label for="habit-category">Category</label>
+                <div class="category-selector-wrapper">
+                  <select id="habit-category" class="category-select">
+                    <option value="">Select category</option>
+                    <option value="Health">Health</option>
+                    <option value="Fitness">Fitness</option>
+                    <option value="Productivity">Productivity</option>
+                    <option value="Mindset">Mindset</option>
+                    <option value="Growth">Growth</option>
+                    <option value="Relationships">Relationships</option>
+                    <option value="Finance">Finance</option>
+                    <option value="Learning">Learning</option>
+                    <option value="Creative">Creative</option>
+                    <option value="Other">Other</option>
+                    <option value="__custom__">+ Add Custom</option>
+                  </select>
+                  <input
+                    id="habit-category-custom"
+                    type="text"
+                    placeholder="Enter custom category"
+                    class="category-custom-input"
+                    hidden
+                  />
+                </div>
               </div>
             </div>
+            <button class="primary" type="submit" id="habit-submit">
+              Add habit
+            </button>
+            <button class="ghost" type="button" id="cancel-edit" hidden>
+              Cancel edit
+            </button>
+          </form>
+
+          <div class="divider"></div>
+
+          <div class="panel-header compact">
             <div>
-              <label for="habit-category">Category</label>
-              <div class="category-selector-wrapper">
-                <select id="habit-category" class="category-select">
-                  <option value="">Select category</option>
-                  <option value="Health">Health</option>
-                  <option value="Fitness">Fitness</option>
-                  <option value="Productivity">Productivity</option>
-                  <option value="Mindset">Mindset</option>
-                  <option value="Growth">Growth</option>
-                  <option value="Relationships">Relationships</option>
-                  <option value="Finance">Finance</option>
-                  <option value="Learning">Learning</option>
-                  <option value="Creative">Creative</option>
-                  <option value="Other">Other</option>
-                  <option value="__custom__">+ Add Custom</option>
-                </select>
-                <input
-                  id="habit-category-custom"
-                  type="text"
-                  placeholder="Enter custom category"
-                  class="category-custom-input"
-                  hidden
-                />
-              </div>
+              <p class="eyebrow">All habits</p>
+              <h3>Tap to update</h3>
             </div>
+            <span class="tag neutral" id="habit-total-tag">0 habits</span>
           </div>
-          <button class="primary" type="submit" id="habit-submit">
-            Add habit
-          </button>
-          <button class="ghost" type="button" id="cancel-edit" hidden>
-            Cancel edit
-          </button>
-        </form>
-
-        <div class="divider"></div>
-
-        <div class="panel-header compact">
-          <div>
-            <p class="eyebrow">Current list</p>
-            <h3>Tap to update</h3>
-          </div>
-          <span class="tag neutral" id="habit-total-tag">0 habits</span>
+          <ul class="habit-list" id="habit-list"></ul>
         </div>
-        <ul class="habit-list" id="habit-list"></ul>
-      </aside>
-    </main>
+      </div>
+    </div>
 
+    <!-- Quick Habits List (Shows only 5) -->
     <section class="panel">
       <div class="panel-header">
         <div>
-          <p class="eyebrow">Performance</p>
-          <h2>Weekly progress chart</h2>
-          <p class="caption">
-            Every day this week, with real completion percentages.
-          </p>
+          <p class="eyebrow">Quick view</p>
+          <h2>Your habits</h2>
+          <p class="caption">Your active habits (showing 5 of <span id="total-habits-count">0</span>)</p>
+        </div>
+        <div class="panel-actions">
+          <button class="ghost" id="view-all-habits-btn">View all</button>
         </div>
       </div>
-      <div class="progress-grid" id="weekly-chart"></div>
+      <ul class="habit-list" id="quick-habit-list"></ul>
     </section>
 
     <section class="panel">
@@ -301,6 +311,34 @@
         </div>
         <div class="modal-content">
           <div class="modal-days" id="modal-days"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Emoji Picker Modal -->
+    <div class="modal-backdrop" id="emoji-picker-modal" hidden>
+      <div class="modal emoji-picker-modal">
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow">Choose an emoji</p>
+            <h3>Select Icon</h3>
+            <p class="caption">Pick an emoji for your habit</p>
+          </div>
+          <button class="ghost" id="close-emoji-picker">Close</button>
+        </div>
+        <div class="modal-content">
+          <div class="emoji-picker-content">
+            <div class="emoji-categories">
+              <button type="button" class="emoji-category-btn active" data-category="all">All</button>
+              <button type="button" class="emoji-category-btn" data-category="health">Health</button>
+              <button type="button" class="emoji-category-btn" data-category="fitness">Fitness</button>
+              <button type="button" class="emoji-category-btn" data-category="productivity">Work</button>
+              <button type="button" class="emoji-category-btn" data-category="mindset">Mind</button>
+              <button type="button" class="emoji-category-btn" data-category="food">Food</button>
+              <button type="button" class="emoji-category-btn" data-category="social">Social</button>
+            </div>
+            <div class="emoji-grid" id="emoji-grid"></div>
+          </div>
         </div>
       </div>
     </div>

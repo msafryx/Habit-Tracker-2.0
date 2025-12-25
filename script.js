@@ -383,11 +383,74 @@ function longestPerfectStreak() {
 
 function renderHabitList() {
   const list = document.getElementById('habit-list');
+  if (!list) return;
   list.innerHTML = '';
   state.habits.forEach((habit) => {
+    const item = createHabitListItem(habit);
+    list.appendChild(item);
+  });
+  const habitTotalTag = document.getElementById('habit-total-tag');
+  if (habitTotalTag) {
+    habitTotalTag.textContent = `${state.habits.length} habits`;
+  }
+  const habitCount = document.getElementById('habit-count');
+  if (habitCount) {
+    habitCount.textContent = state.habits.length;
+  }
+}
+
+function createHabitListItem(habit) {
+  const item = document.createElement('li');
+  item.className = 'habit-item';
+
+  const meta = document.createElement('div');
+  meta.className = 'habit-meta';
+  meta.innerHTML = `
+    <div class="icon">${habit.icon || '•'}</div>
+    <div>
+      <div class="day-label">${habit.name}</div>
+      <p class="caption">${habit.category || 'General'}</p>
+    </div>
+  `;
+
+  const actions = document.createElement('div');
+  actions.className = 'habit-actions';
+  const editBtn = document.createElement('button');
+  editBtn.className = 'ghost';
+  editBtn.textContent = 'Edit';
+  editBtn.addEventListener('click', () => startEditHabit(habit));
+
+  const deleteBtn = document.createElement('button');
+  deleteBtn.className = 'ghost';
+  deleteBtn.textContent = 'Delete';
+  deleteBtn.addEventListener('click', async () => {
+    const confirmed = confirm(`Delete habit "${habit.name}"? Data for it will be removed.`);
+    if (!confirmed) return;
+    try {
+      await deleteHabit(habit.id);
+      refreshUI();
+    } catch (error) {
+      alert('Failed to delete habit. Please try again.');
+    }
+  });
+
+  actions.append(editBtn, deleteBtn);
+  item.append(meta, actions);
+  return item;
+}
+
+function renderQuickHabitList() {
+  const quickList = document.getElementById('quick-habit-list');
+  const totalCount = document.getElementById('total-habits-count');
+  if (!quickList) return;
+  
+  quickList.innerHTML = '';
+  const habitsToShow = state.habits.slice(0, 5);
+  
+  habitsToShow.forEach((habit) => {
     const item = document.createElement('li');
     item.className = 'habit-item';
-
+    
     const meta = document.createElement('div');
     meta.className = 'habit-meta';
     meta.innerHTML = `
@@ -397,34 +460,14 @@ function renderHabitList() {
         <p class="caption">${habit.category || 'General'}</p>
       </div>
     `;
-
-    const actions = document.createElement('div');
-    actions.className = 'habit-actions';
-    const editBtn = document.createElement('button');
-    editBtn.className = 'ghost';
-    editBtn.textContent = 'Edit';
-    editBtn.addEventListener('click', () => startEditHabit(habit));
-
-    const deleteBtn = document.createElement('button');
-    deleteBtn.className = 'ghost';
-    deleteBtn.textContent = 'Delete';
-    deleteBtn.addEventListener('click', async () => {
-      const confirmed = confirm(`Delete habit "${habit.name}"? Data for it will be removed.`);
-      if (!confirmed) return;
-      try {
-        await deleteHabit(habit.id);
-        refreshUI();
-      } catch (error) {
-        alert('Failed to delete habit. Please try again.');
-      }
-    });
-
-    actions.append(editBtn, deleteBtn);
-    item.append(meta, actions);
-    list.appendChild(item);
+    
+    item.appendChild(meta);
+    quickList.appendChild(item);
   });
-  document.getElementById('habit-count').textContent = state.habits.length;
-  document.getElementById('habit-total-tag').textContent = `${state.habits.length} habits`;
+  
+  if (totalCount) {
+    totalCount.textContent = state.habits.length;
+  }
 }
 
 function renderWeekTable() {
@@ -669,6 +712,168 @@ function closeNotesModal() {
   }
 }
 
+// Emoji picker modal functions
+function openEmojiPicker() {
+  const emojiPickerModal = document.getElementById('emoji-picker-modal');
+  const emojiGrid = document.getElementById('emoji-grid');
+  
+  if (!emojiPickerModal || !emojiGrid) {
+    console.error('Emoji picker modal elements not found');
+    return;
+  }
+  
+  // Open modal
+  emojiPickerModal.removeAttribute('hidden');
+  emojiPickerModal.style.display = 'grid';
+  
+  // Render emojis
+  renderEmojiGrid(currentEmojiCategory);
+  
+  // Setup category buttons
+  setupEmojiCategoryButtons();
+  
+  console.log('Emoji picker modal opened');
+}
+
+function closeEmojiPicker() {
+  const emojiPickerModal = document.getElementById('emoji-picker-modal');
+  if (emojiPickerModal) {
+    emojiPickerModal.setAttribute('hidden', '');
+    emojiPickerModal.style.display = 'none';
+    console.log('Emoji picker modal closed');
+  }
+}
+
+function renderEmojiGrid(category = 'all') {
+  const emojiGrid = document.getElementById('emoji-grid');
+  if (!emojiGrid) return;
+  
+  const emojis = EMOJI_CATEGORIES[category] || EMOJI_CATEGORIES.all;
+  console.log(`Rendering ${emojis.length} emojis for category: ${category}`);
+  emojiGrid.innerHTML = '';
+  
+  const iconInput = document.getElementById('habit-icon');
+  
+  emojis.forEach(emoji => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'emoji-btn';
+    btn.textContent = emoji;
+    btn.title = emoji;
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (iconInput) {
+        iconInput.value = emoji;
+        iconInput.removeAttribute('readonly');
+      }
+      closeEmojiPicker();
+      console.log('Emoji selected:', emoji);
+    });
+    emojiGrid.appendChild(btn);
+  });
+}
+
+function setupEmojiCategoryButtons() {
+  const emojiCategoryBtns = document.querySelectorAll('.emoji-category-btn');
+  
+  emojiCategoryBtns.forEach(btn => {
+    // Remove old listeners by cloning
+    const newBtn = btn.cloneNode(true);
+    btn.parentNode.replaceChild(newBtn, btn);
+    
+    newBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const category = newBtn.dataset.category;
+      currentEmojiCategory = category;
+      
+      // Update active state
+      document.querySelectorAll('.emoji-category-btn').forEach(b => b.classList.remove('active'));
+      newBtn.classList.add('active');
+      
+      // Render new category
+      renderEmojiGrid(category);
+    });
+  });
+}
+
+// Global function to setup emoji picker
+function setupEmojiPicker() {
+  const iconInput = document.getElementById('habit-icon');
+  const iconPickerBtn = document.getElementById('open-icon-picker');
+  
+  if (!iconInput || !iconPickerBtn) {
+    console.warn('Emoji picker elements not found:', { iconInput, iconPickerBtn });
+    return false;
+  }
+
+  // Remove old listeners by cloning the button
+  const newIconPickerBtn = iconPickerBtn.cloneNode(true);
+  iconPickerBtn.parentNode.replaceChild(newIconPickerBtn, iconPickerBtn);
+  
+  // Setup icon picker button
+  newIconPickerBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    openEmojiPicker();
+  });
+
+  // Allow typing custom emoji
+  iconInput.addEventListener('click', () => {
+    iconInput.removeAttribute('readonly');
+  });
+
+  return true;
+}
+
+function openHabitManager() {
+  const modal = document.getElementById('habit-manager-modal');
+  if (!modal) {
+    console.error('Habit manager modal not found!');
+    return;
+  }
+  
+  // Remove hidden attribute - this is the key step
+  modal.removeAttribute('hidden');
+  
+  // Force display style to override any CSS
+  modal.style.display = 'grid';
+  modal.style.visibility = 'visible';
+  modal.style.opacity = '1';
+  
+  // Ensure z-index is correct
+  if (!modal.style.zIndex || modal.style.zIndex < 1000) {
+    modal.style.zIndex = '1000';
+  }
+  
+  // Refresh the full habit list in the modal
+  renderHabitList();
+  
+  // Setup emoji picker after a short delay to ensure DOM is ready
+  setTimeout(() => {
+    setupEmojiPicker();
+    // Also setup category buttons if modal is already open
+    setupEmojiCategoryButtons();
+  }, 100);
+  
+  console.log('Habit manager opened', {
+    hidden: modal.hidden,
+    display: modal.style.display,
+    computedDisplay: window.getComputedStyle(modal).display
+  });
+}
+
+function closeHabitManager() {
+  const modal = document.getElementById('habit-manager-modal');
+  if (modal) {
+    modal.setAttribute('hidden', '');
+    modal.style.display = 'none';
+    resetHabitForm();
+    console.log('Habit manager closed');
+  }
+}
+
 function renderWeekRollup() {
   const weeks = document.getElementById('week-rollup');
   weeks.innerHTML = '';
@@ -750,6 +955,7 @@ function renderClock() {
 
 function refreshUI() {
   renderHabitList();
+  renderQuickHabitList();
   renderWeekTable();
   renderWeeklyChart();
   renderMonthGrid();
@@ -905,16 +1111,69 @@ function attachHandlers() {
     });
   }
 
+  // Habit manager modal handlers
+  const openHabitManagerBtn = document.getElementById('open-habit-manager');
+  const viewAllHabitsBtn = document.getElementById('view-all-habits-btn');
+  const closeHabitManagerBtn = document.getElementById('close-habit-manager');
+  const habitManagerModal = document.getElementById('habit-manager-modal');
+
+  if (openHabitManagerBtn) {
+    openHabitManagerBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      openHabitManager();
+    });
+  }
+
+  if (viewAllHabitsBtn) {
+    viewAllHabitsBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      openHabitManager();
+    });
+  }
+
+  if (closeHabitManagerBtn) {
+    closeHabitManagerBtn.addEventListener('click', () => {
+      closeHabitManager();
+    });
+  }
+
+  if (habitManagerModal) {
+    habitManagerModal.addEventListener('click', (event) => {
+      // Only close if clicking directly on the backdrop, not on the modal content
+      if (event.target === habitManagerModal) {
+        event.preventDefault();
+        event.stopPropagation();
+        closeHabitManager();
+      }
+    });
+    
+    // Prevent clicks inside the modal from closing it
+    const modalContent = habitManagerModal.querySelector('.modal');
+    if (modalContent) {
+      modalContent.addEventListener('click', (event) => {
+        event.stopPropagation();
+      });
+    }
+  }
+
   // Close modals on ESC key
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') {
       const notesBackdrop = document.getElementById('notes-modal');
       const monthBackdrop = document.getElementById('month-modal');
+      const habitBackdrop = document.getElementById('habit-manager-modal');
+      const emojiBackdrop = document.getElementById('emoji-picker-modal');
       
-      if (notesBackdrop && !notesBackdrop.hidden) {
+      if (emojiBackdrop && !emojiBackdrop.hidden) {
+        closeEmojiPicker();
+      } else if (notesBackdrop && !notesBackdrop.hidden) {
         closeNotesModal();
       } else if (monthBackdrop && !monthBackdrop.hidden) {
         closeMonthModal();
+      } else if (habitBackdrop && !habitBackdrop.hidden) {
+        closeHabitManager();
       }
     }
   });
@@ -952,77 +1211,34 @@ function attachHandlers() {
     });
   }
 
-  // Emoji picker handlers
-  const iconInput = document.getElementById('habit-icon');
-  const iconPickerBtn = document.getElementById('open-icon-picker');
-  const emojiPicker = document.getElementById('emoji-picker');
-  const emojiGrid = document.getElementById('emoji-grid');
-  const emojiCategoryBtns = document.querySelectorAll('.emoji-category-btn');
+  // Try initial setup (may fail if modal is hidden, that's OK)
+  setupEmojiPicker();
 
-  function renderEmojiGrid(category = 'all') {
-    if (!emojiGrid) return;
-    const emojis = EMOJI_CATEGORIES[category] || EMOJI_CATEGORIES.all;
-    emojiGrid.innerHTML = '';
-    
-    emojis.forEach(emoji => {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'emoji-btn';
-      btn.textContent = emoji;
-      btn.title = emoji;
-      btn.addEventListener('click', () => {
-        iconInput.value = emoji;
-        emojiPicker.hidden = true;
-      });
-      emojiGrid.appendChild(btn);
+  // Emoji picker modal handlers
+  const closeEmojiPickerBtn = document.getElementById('close-emoji-picker');
+  const emojiPickerModal = document.getElementById('emoji-picker-modal');
+  
+  if (closeEmojiPickerBtn) {
+    closeEmojiPickerBtn.addEventListener('click', () => {
+      closeEmojiPicker();
     });
   }
-
-  if (iconPickerBtn && emojiPicker) {
-    iconPickerBtn.addEventListener('click', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      emojiPicker.hidden = !emojiPicker.hidden;
-      if (!emojiPicker.hidden) {
-        renderEmojiGrid(currentEmojiCategory);
+  
+  if (emojiPickerModal) {
+    emojiPickerModal.addEventListener('click', (event) => {
+      // Close when clicking on backdrop
+      if (event.target === emojiPickerModal) {
+        closeEmojiPicker();
       }
     });
-  }
-
-  // Emoji category buttons
-  if (emojiCategoryBtns.length > 0) {
-    emojiCategoryBtns.forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        e.preventDefault();
-        const category = btn.dataset.category;
-        currentEmojiCategory = category;
-        
-        // Update active state
-        emojiCategoryBtns.forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        
-        renderEmojiGrid(category);
+    
+    // Prevent clicks inside modal from closing it
+    const modalContent = emojiPickerModal.querySelector('.modal');
+    if (modalContent) {
+      modalContent.addEventListener('click', (event) => {
+        event.stopPropagation();
       });
-    });
-  }
-
-  // Close emoji picker when clicking outside
-  document.addEventListener('click', (e) => {
-    if (emojiPicker && !emojiPicker.contains(e.target) && 
-        e.target !== iconPickerBtn && 
-        e.target !== iconInput) {
-      emojiPicker.hidden = true;
     }
-  });
-
-  // Allow typing custom emoji
-  if (iconInput) {
-    iconInput.addEventListener('click', () => {
-      iconInput.removeAttribute('readonly');
-    });
-    iconInput.addEventListener('blur', () => {
-      // Keep it editable, but can be readonly initially
-    });
   }
 
   const habitForm = document.getElementById('habit-form');
