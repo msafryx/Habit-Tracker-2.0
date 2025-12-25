@@ -203,6 +203,9 @@
             Capture highlights, blockers, or tweaks you want to try.
           </p>
         </div>
+        <div class="panel-actions">
+          <button class="ghost" id="view-all-notes">View all notes</button>
+        </div>
       </div>
       <div class="notes-area">
         <textarea
@@ -216,28 +219,53 @@
       </div>
     </section>
 
+    <!-- Notes Modal -->
+    <div class="modal-backdrop" id="notes-modal" hidden>
+      <div class="modal notes-modal">
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow">All Notes</p>
+            <h3>Your Notes & Reflections</h3>
+            <p class="caption" id="notes-modal-summary">View and edit all your saved notes</p>
+          </div>
+          <button class="ghost" id="close-notes-modal">Close</button>
+        </div>
+        <div class="modal-content">
+          <div class="notes-editor-area">
+            <textarea
+              id="notes-editor"
+              placeholder="Start writing your notes here..."
+            ></textarea>
+            <div class="notes-actions">
+              <button class="primary" id="save-notes-editor">Save changes</button>
+              <span class="caption" id="notes-editor-status">Ready to edit</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <footer class="footer">
       <p>
-        Data is saved locally and stays in sync as you add, edit, or delete
-        habits.
+        Data is saved in the database and syncs in real-time across all devices.
       </p>
     </footer>
 
-    <!-- <div class="modal-backdrop" id="month-modal" hidden>
-    <div class="modal">
-      <div class="modal-header">
-        <div>
-          <p class="eyebrow">Month detail</p>
-          <h3 id="modal-month-label">Month</h3>
-          <p class="caption" id="modal-month-summary">--</p>
+    <div class="modal-backdrop" id="month-modal" hidden>
+      <div class="modal">
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow">Month detail</p>
+            <h3 id="modal-month-label">Month</h3>
+            <p class="caption" id="modal-month-summary">--</p>
+          </div>
+          <button class="ghost" id="close-modal">Close</button>
         </div>
-        <button class="ghost" id="close-modal">Close</button>
-      </div>
-      <div class="modal-content">
-        <div class="modal-days" id="modal-days"></div>
+        <div class="modal-content">
+          <div class="modal-days" id="modal-days"></div>
+        </div>
       </div>
     </div>
-  </div> -->
 
     <script src="script.js"></script>
   </body>

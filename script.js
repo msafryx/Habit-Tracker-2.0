@@ -20,18 +20,240 @@ const milestoneTargets = [
   { label: 'Century Club', days: 100, reward: '100 perfect days! A new standard set.' },
 ];
 
-const STORAGE_KEY = 'habit-tracker-2.0';
+// API Configuration
+const API_BASE = window.location.origin;
+// Determine WebSocket URL - use same origin if available, otherwise default to port 3000
+const getWebSocketUrl = () => {
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const host = window.location.hostname;
+  // If served from same server, use same port; otherwise default to 3000
+  if (window.location.port) {
+    return `${protocol}//${host}:${window.location.port}`;
+  }
+  // Default to port 3000 for development
+  return `${protocol}//${host}:3000`;
+};
+const WS_URL = getWebSocketUrl();
 
-let state = createDefaultState();
+let state = {
+  habits: [],
+  habitLog: {},
+  notes: '',
+  lastSaved: null,
+};
 let editingHabitId = null;
+let ws = null;
+let reconnectAttempts = 0;
+const MAX_RECONNECT_ATTEMPTS = 5;
 
-function createDefaultState() {
-  return {
-    habits: DEFAULT_HABITS.map((h) => ({ ...h })),
-    habitLog: {},
-    notes: '',
-    lastSaved: null,
-  };
+// WebSocket connection
+function connectWebSocket() {
+  try {
+    console.log('Attempting WebSocket connection to:', WS_URL);
+    ws = new WebSocket(WS_URL);
+    
+    ws.onopen = () => {
+      console.log('WebSocket connected successfully');
+      reconnectAttempts = 0;
+      updateSyncStatus('Connected');
+    };
+    
+    ws.onmessage = (event) => {
+      try {
+        const message = JSON.parse(event.data);
+        console.log('WebSocket message received:', message);
+        handleRealtimeUpdate(message);
+      } catch (error) {
+        console.error('Error parsing WebSocket message:', error);
+      }
+    };
+    
+    ws.onerror = (error) => {
+      console.error('WebSocket error:', error);
+      updateSyncStatus('Connection error');
+    };
+    
+    ws.onclose = (event) => {
+      console.log('WebSocket disconnected. Code:', event.code, 'Reason:', event.reason);
+      updateSyncStatus('Disconnected');
+      // Attempt to reconnect
+      if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+        reconnectAttempts++;
+        console.log(`Attempting to reconnect (${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})...`);
+        setTimeout(connectWebSocket, 2000 * reconnectAttempts);
+      } else {
+        console.log('Max reconnection attempts reached');
+      }
+    };
+  } catch (error) {
+    console.error('Failed to connect WebSocket:', error);
+    updateSyncStatus('Offline mode');
+  }
+}
+
+// Handle real-time updates from WebSocket
+function handleRealtimeUpdate(message) {
+  switch (message.type) {
+    case 'habit_created':
+    case 'habit_updated':
+      const habit = message.data;
+      const existingIndex = state.habits.findIndex(h => h.id === habit.id);
+      if (existingIndex >= 0) {
+        state.habits[existingIndex] = habit;
+      } else {
+        state.habits.push(habit);
+      }
+      refreshUI();
+      break;
+    case 'habit_deleted':
+      state.habits = state.habits.filter(h => h.id !== message.data.id);
+      refreshUI();
+      break;
+    case 'log_updated':
+      const { dateKey, habitId, completed } = message.data;
+      if (!state.habitLog[dateKey]) {
+        state.habitLog[dateKey] = { habits: {}, note: '' };
+      }
+      state.habitLog[dateKey].habits[habitId] = completed;
+      refreshUI();
+      break;
+    case 'daily_note_updated':
+      const { dateKey: noteDateKey, note } = message.data;
+      if (!state.habitLog[noteDateKey]) {
+        state.habitLog[noteDateKey] = { habits: {}, note: '' };
+      }
+      state.habitLog[noteDateKey].note = note;
+      refreshUI();
+      break;
+    case 'global_note_updated':
+      state.notes = message.data.content;
+      renderNotes();
+      break;
+  }
+}
+
+// API functions
+async function apiRequest(endpoint, options = {}) {
+  try {
+    const url = `${API_BASE}${endpoint}`;
+    console.log('API Request:', options.method || 'GET', url);
+    const response = await fetch(url, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...options.headers,
+      },
+    });
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('API Error Response:', response.status, errorText);
+      throw new Error(`API error: ${response.status} ${response.statusText}`);
+    }
+    const data = await response.json();
+    console.log('API Success:', url, data);
+    return data;
+  } catch (error) {
+    console.error('API request failed:', endpoint, error);
+    updateSyncStatus('Sync error');
+    throw error;
+  }
+}
+
+async function loadState() {
+  try {
+    console.log('Loading state from API...');
+    const data = await apiRequest('/api/state');
+    console.log('Loaded state:', data);
+    state.habits = data.habits || [];
+    state.habitLog = data.habitLog || {};
+    state.notes = data.notes || '';
+    state.lastSaved = data.lastSaved || null;
+    
+    // Ensure all logs have all habits
+    Object.keys(state.habitLog).forEach((key) => ensureLogEntry(key));
+    
+    console.log('State loaded successfully. Habits:', state.habits.length);
+    updateSyncStatus('Synced');
+  } catch (error) {
+    console.error('Failed to load state:', error);
+    // Fallback to default state
+    state.habits = [];
+    state.habitLog = {};
+    state.notes = '';
+    updateSyncStatus('Offline');
+    alert('Failed to connect to server. Please make sure the server is running on port 3000.');
+  }
+}
+
+async function saveHabit(habit) {
+  try {
+    if (editingHabitId) {
+      await apiRequest(`/api/habits/${habit.id}`, {
+        method: 'PUT',
+        body: JSON.stringify(habit),
+      });
+    } else {
+      await apiRequest('/api/habits', {
+        method: 'POST',
+        body: JSON.stringify(habit),
+      });
+    }
+    updateSyncStatus('Synced');
+  } catch (error) {
+    updateSyncStatus('Sync error');
+    throw error;
+  }
+}
+
+async function deleteHabit(habitId) {
+  try {
+    await apiRequest(`/api/habits/${habitId}`, {
+      method: 'DELETE',
+    });
+    updateSyncStatus('Synced');
+  } catch (error) {
+    updateSyncStatus('Sync error');
+    throw error;
+  }
+}
+
+async function updateHabitLog(dateKey, habitId, completed) {
+  try {
+    await apiRequest('/api/logs', {
+      method: 'POST',
+      body: JSON.stringify({ dateKey, habitId, completed }),
+    });
+    updateSyncStatus('Synced');
+  } catch (error) {
+    updateSyncStatus('Sync error');
+    throw error;
+  }
+}
+
+async function updateDailyNote(dateKey, note) {
+  try {
+    await apiRequest('/api/notes/daily', {
+      method: 'POST',
+      body: JSON.stringify({ dateKey, note }),
+    });
+    updateSyncStatus('Synced');
+  } catch (error) {
+    updateSyncStatus('Sync error');
+    throw error;
+  }
+}
+
+async function updateGlobalNotes(content) {
+  try {
+    await apiRequest('/api/notes/global', {
+      method: 'POST',
+      body: JSON.stringify({ content }),
+    });
+    updateSyncStatus('Synced');
+  } catch (error) {
+    updateSyncStatus('Sync error');
+    throw error;
+  }
 }
 
 function formatKey(date) {
@@ -66,33 +288,6 @@ function getMonthDates(reference = new Date()) {
     d.setHours(12, 0, 0, 0);
     return d;
   });
-}
-
-function saveState() {
-  state.lastSaved = new Date().toISOString();
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  updateSyncStatus('Synced');
-}
-
-function loadState() {
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      state = JSON.parse(saved);
-      state.habits = (state.habits || []).map((h) => ({ ...h }));
-      state.habitLog = state.habitLog || {};
-      state.notes = state.notes || '';
-      state.lastSaved = state.lastSaved || null;
-    } else {
-      state = createDefaultState();
-    }
-  } catch (err) {
-    console.warn('Falling back to defaults', err);
-    state = createDefaultState();
-  }
-
-  // ensure all logs have all habits
-  Object.keys(state.habitLog).forEach((key) => ensureLogEntry(key));
 }
 
 function ensureLogEntry(key) {
@@ -200,16 +395,15 @@ function renderHabitList() {
     const deleteBtn = document.createElement('button');
     deleteBtn.className = 'ghost';
     deleteBtn.textContent = 'Delete';
-    deleteBtn.addEventListener('click', () => {
+    deleteBtn.addEventListener('click', async () => {
       const confirmed = confirm(`Delete habit "${habit.name}"? Data for it will be removed.`);
       if (!confirmed) return;
-      state.habits = state.habits.filter((h) => h.id !== habit.id);
-      Object.values(state.habitLog).forEach((entry) => {
-        delete entry.habits[habit.id];
-      });
-      markUnsynced();
-      saveState();
-      refreshUI();
+      try {
+        await deleteHabit(habit.id);
+        refreshUI();
+      } catch (error) {
+        alert('Failed to delete habit. Please try again.');
+      }
     });
 
     actions.append(editBtn, deleteBtn);
@@ -263,11 +457,16 @@ function renderWeekTable() {
       const input = document.createElement('input');
       input.type = 'checkbox';
       input.checked = ensureLogEntry(key).habits[habit.id];
-      input.addEventListener('change', () => {
-        ensureLogEntry(key).habits[habit.id] = input.checked;
-        markUnsynced();
-        saveState();
-        refreshUI();
+      input.addEventListener('change', async () => {
+        const completed = input.checked;
+        ensureLogEntry(key).habits[habit.id] = completed;
+        try {
+          await updateHabitLog(key, habit.id, completed);
+          refreshUI();
+        } catch (error) {
+          input.checked = !completed; // Revert on error
+          alert('Failed to update. Please try again.');
+        }
       });
       const text = document.createElement('span');
       text.textContent = `${habit.icon || '•'} ${habit.name}`;
@@ -300,10 +499,18 @@ function renderWeekTable() {
     note.className = 'note-input';
     note.placeholder = 'Start logging';
     note.value = ensureLogEntry(key).note || '';
+    let noteTimeout;
     note.addEventListener('input', (e) => {
-      ensureLogEntry(key).note = e.target.value;
-      markUnsynced();
-      saveState();
+      const noteValue = e.target.value;
+      ensureLogEntry(key).note = noteValue;
+      clearTimeout(noteTimeout);
+      noteTimeout = setTimeout(async () => {
+        try {
+          await updateDailyNote(key, noteValue);
+        } catch (error) {
+          console.error('Failed to save note:', error);
+        }
+      }, 500); // Debounce
     });
     noteCell.appendChild(note);
 
@@ -413,11 +620,40 @@ function openMonthModal(monthIndex) {
   }
 
   backdrop.hidden = false;
+  backdrop.style.display = 'grid';
+  console.log('Modal opened for month:', monthName(safeIndex));
 }
 
 function closeMonthModal() {
   const backdrop = document.getElementById('month-modal');
-  if (backdrop) backdrop.hidden = true;
+  if (backdrop) {
+    backdrop.hidden = true;
+    backdrop.style.display = 'none';
+    console.log('Modal closed');
+  }
+}
+
+function openNotesModal() {
+  const modal = document.getElementById('notes-modal');
+  const editor = document.getElementById('notes-editor');
+  if (modal && editor) {
+    editor.value = state.notes || '';
+    document.getElementById('notes-editor-status').textContent = 'Ready to edit';
+    modal.hidden = false;
+    modal.style.display = 'grid';
+    // Focus the editor
+    setTimeout(() => editor.focus(), 100);
+    console.log('Notes modal opened');
+  }
+}
+
+function closeNotesModal() {
+  const modal = document.getElementById('notes-modal');
+  if (modal) {
+    modal.hidden = true;
+    modal.style.display = 'none';
+    console.log('Notes modal closed');
+  }
 }
 
 function renderWeekRollup() {
@@ -512,33 +748,37 @@ function refreshUI() {
   renderClock();
 }
 
-function markTodayPerfect() {
+async function markTodayPerfect() {
   const todayKey = formatKey(new Date());
   const log = ensureLogEntry(todayKey);
-  state.habits.forEach((h) => (log.habits[h.id] = true));
-  log.note = log.note || 'Marked as perfect day.';
-  saveState();
-  refreshUI();
-}
-
-function focusTodayNote() {
-  const weekRows = Array.from(document.querySelectorAll('.row'));
-  const targetRow = weekRows.find((row) => row.textContent.includes(displayLabel(new Date())));
-  if (targetRow) {
-    const input = targetRow.querySelector('input.note-input');
-    if (input) {
-      input.focus();
+  const promises = state.habits.map((h) => 
+    updateHabitLog(todayKey, h.id, true)
+  );
+  try {
+    await Promise.all(promises);
+    state.habits.forEach((h) => (log.habits[h.id] = true));
+    if (!log.note) {
+      log.note = 'Marked as perfect day.';
+      await updateDailyNote(todayKey, log.note);
     }
+    refreshUI();
+  } catch (error) {
+    alert('Failed to mark today as perfect. Please try again.');
   }
 }
 
 function updateSyncStatus(text) {
   const el = document.getElementById('sync-status');
-  el.textContent = text;
-}
-
-function markUnsynced() {
-  updateSyncStatus('Unsaved changes');
+  if (el) {
+    el.textContent = text;
+    if (text === 'Synced' || text === 'Connected') {
+      el.className = 'sync synced';
+    } else if (text.includes('error') || text.includes('error')) {
+      el.className = 'sync error';
+    } else {
+      el.className = 'sync';
+    }
+  }
 }
 
 function resetHabitForm() {
@@ -561,73 +801,269 @@ function startEditHabit(habit) {
 
 function attachHandlers() {
   document.getElementById('mark-today').addEventListener('click', markTodayPerfect);
-  document.getElementById('notes').addEventListener('input', () => {
+  
+  const notesTextarea = document.getElementById('notes');
+  let notesTimeout;
+  notesTextarea.addEventListener('input', () => {
+    state.notes = notesTextarea.value;
     document.getElementById('notes-status').textContent = 'Unsaved';
-    markUnsynced();
+    clearTimeout(notesTimeout);
+    notesTimeout = setTimeout(async () => {
+      try {
+        await updateGlobalNotes(state.notes);
+        document.getElementById('notes-status').textContent = 'Saved';
+      } catch (error) {
+        document.getElementById('notes-status').textContent = 'Error';
+      }
+    }, 500);
   });
-  document.getElementById('save-notes').addEventListener('click', () => {
-    state.notes = document.getElementById('notes').value;
-    document.getElementById('notes-status').textContent = 'Saved';
-    saveState();
-    refreshUI();
+  
+  document.getElementById('save-notes').addEventListener('click', async () => {
+    state.notes = notesTextarea.value;
+    try {
+      await updateGlobalNotes(state.notes);
+      document.getElementById('notes-status').textContent = 'Saved';
+    } catch (error) {
+      alert('Failed to save notes. Please try again.');
+    }
   });
-  document.getElementById('clear-data').addEventListener('click', () => {
+
+  // Notes modal handlers
+  const viewAllNotesBtn = document.getElementById('view-all-notes');
+  const notesModal = document.getElementById('notes-modal');
+  const closeNotesModalBtn = document.getElementById('close-notes-modal');
+  const notesEditor = document.getElementById('notes-editor');
+  const saveNotesEditorBtn = document.getElementById('save-notes-editor');
+  const notesEditorStatus = document.getElementById('notes-editor-status');
+
+  if (viewAllNotesBtn) {
+    viewAllNotesBtn.addEventListener('click', () => {
+      openNotesModal();
+    });
+  }
+
+  if (closeNotesModalBtn) {
+    closeNotesModalBtn.addEventListener('click', () => {
+      closeNotesModal();
+    });
+  }
+
+  if (notesModal) {
+    notesModal.addEventListener('click', (event) => {
+      if (event.target === notesModal) {
+        closeNotesModal();
+      }
+    });
+  }
+
+  if (notesEditor) {
+    let notesEditorTimeout;
+    notesEditor.addEventListener('input', () => {
+      notesEditorStatus.textContent = 'Unsaved changes';
+      clearTimeout(notesEditorTimeout);
+      notesEditorTimeout = setTimeout(async () => {
+        try {
+          await updateGlobalNotes(notesEditor.value);
+          notesEditorStatus.textContent = 'Auto-saved';
+          state.notes = notesEditor.value;
+        } catch (error) {
+          notesEditorStatus.textContent = 'Save error';
+        }
+      }, 1000);
+    });
+  }
+
+  if (saveNotesEditorBtn) {
+    saveNotesEditorBtn.addEventListener('click', async () => {
+      try {
+        await updateGlobalNotes(notesEditor.value);
+        notesEditorStatus.textContent = 'Saved';
+        state.notes = notesEditor.value;
+        // Also update the main notes textarea
+        notesTextarea.value = notesEditor.value;
+        document.getElementById('notes-status').textContent = 'Saved';
+      } catch (error) {
+        alert('Failed to save notes. Please try again.');
+      }
+    });
+  }
+
+  // Close modals on ESC key
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      const notesBackdrop = document.getElementById('notes-modal');
+      const monthBackdrop = document.getElementById('month-modal');
+      
+      if (notesBackdrop && !notesBackdrop.hidden) {
+        closeNotesModal();
+      } else if (monthBackdrop && !monthBackdrop.hidden) {
+        closeMonthModal();
+      }
+    }
+  });
+  
+  document.getElementById('clear-data').addEventListener('click', async () => {
     const confirmed = confirm('Clear all habit data? This cannot be undone.');
     if (!confirmed) return;
-    state = createDefaultState();
-    saveState();
-    refreshUI();
+    try {
+      // Delete all habits (which will cascade delete logs)
+      const deletePromises = state.habits.map(h => deleteHabit(h.id));
+      await Promise.all(deletePromises);
+      state.habits = [];
+      state.habitLog = {};
+      state.notes = '';
+      await updateGlobalNotes('');
+      refreshUI();
+    } catch (error) {
+      alert('Failed to clear data. Please try again.');
+    }
   });
-  document.getElementById('habit-form').addEventListener('submit', (e) => {
+  
+  const habitForm = document.getElementById('habit-form');
+  if (!habitForm) {
+    console.error('Habit form not found!');
+    return;
+  }
+  
+  habitForm.addEventListener('submit', async (e) => {
     e.preventDefault();
+    e.stopPropagation();
+    console.log('Form submitted');
+    
+    const submitButton = document.getElementById('habit-submit');
+    const originalText = submitButton.textContent;
+    submitButton.disabled = true;
+    submitButton.textContent = 'Saving...';
+    
     const name = document.getElementById('habit-name').value.trim();
     const icon = document.getElementById('habit-icon').value.trim() || '•';
     const category = document.getElementById('habit-category').value.trim() || 'General';
-    if (!name) return;
-    if (editingHabitId) {
-      const target = state.habits.find((h) => h.id === editingHabitId);
-      if (target) {
-        target.name = name;
-        target.icon = icon;
-        target.category = category;
-      }
-    } else {
-      const id = `${name.toLowerCase().replace(/\s+/g, '-')}-${Date.now()}`;
-      state.habits.push({ id, name, icon, category });
-      Object.keys(state.habitLog).forEach((key) => {
-        ensureLogEntry(key).habits[id] = false;
-      });
+    
+    if (!name) {
+      alert('Please enter a habit name');
+      submitButton.disabled = false;
+      submitButton.textContent = originalText;
+      return;
     }
-    resetHabitForm();
-    markUnsynced();
-    saveState();
-    refreshUI();
+    
+    console.log('Saving habit:', { name, icon, category, editingHabitId });
+    
+    try {
+      if (editingHabitId) {
+        const target = state.habits.find((h) => h.id === editingHabitId);
+        if (target) {
+          await saveHabit({ id: editingHabitId, name, icon, category });
+        }
+      } else {
+        const id = `${name.toLowerCase().replace(/\s+/g, '-')}-${Date.now()}`;
+        console.log('Creating new habit with ID:', id);
+        await saveHabit({ id, name, icon, category });
+      }
+      console.log('Habit saved successfully');
+      resetHabitForm();
+      await loadState();
+      refreshUI();
+      submitButton.disabled = false;
+      submitButton.textContent = originalText;
+    } catch (error) {
+      console.error('Error saving habit:', error);
+      alert(`Failed to save habit: ${error.message}\n\nPlease check:\n1. Server is running on port 3000\n2. Browser console for details`);
+      submitButton.disabled = false;
+      submitButton.textContent = originalText;
+    }
   });
+  
   document.getElementById('cancel-edit').addEventListener('click', () => {
     resetHabitForm();
   });
+  
   const modalBackdrop = document.getElementById('month-modal');
   if (modalBackdrop) {
+    // Close on backdrop click
     modalBackdrop.addEventListener('click', (event) => {
-      if (event.target === modalBackdrop) closeMonthModal();
+      if (event.target === modalBackdrop) {
+        event.preventDefault();
+        event.stopPropagation();
+        closeMonthModal();
+      }
+    });
+    
+    // Prevent clicks inside modal from closing it
+    const modal = modalBackdrop.querySelector('.modal');
+    if (modal) {
+      modal.addEventListener('click', (event) => {
+        event.stopPropagation();
+      });
+    }
+  }
+  
+  const closeModalBtn = document.getElementById('close-modal');
+  if (closeModalBtn) {
+    closeModalBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      closeMonthModal();
     });
   }
-  const closeModalBtn = document.getElementById('close-modal');
-  if (closeModalBtn) closeModalBtn.addEventListener('click', closeMonthModal);
+  
+  // Close modals on ESC key (handled in notes modal section above)
+  
   const openCurrentMonthBtn = document.getElementById('open-current-month');
   if (openCurrentMonthBtn) openCurrentMonthBtn.addEventListener('click', () => openMonthModal(new Date().getMonth()));
 
+  // Update clock every second
   setInterval(() => {
     renderClock();
+  }, 1000);
+  
+  // Refresh UI every 30 seconds to catch any missed updates
+  setInterval(() => {
     refreshUI();
-  }, 1000 * 30);
+  }, 30000);
 }
 
-function init() {
-  loadState();
-  attachHandlers();
-  refreshUI();
-  updateSyncStatus('Synced');
+async function init() {
+  console.log('Initializing Habit Tracker...');
+  console.log('API Base:', API_BASE);
+  console.log('WebSocket URL:', WS_URL);
+  console.log('Current URL:', window.location.href);
+  
+  // Ensure modal is closed on init
+  const modalBackdrop = document.getElementById('month-modal');
+  if (modalBackdrop) {
+    modalBackdrop.hidden = true;
+    modalBackdrop.style.display = 'none';
+  }
+  
+  // Check if server is reachable
+  try {
+    const healthCheck = await fetch(`${API_BASE}/api/health`);
+    if (!healthCheck.ok) {
+      throw new Error('Server health check failed');
+    }
+    console.log('Server is reachable');
+  } catch (error) {
+    console.error('Cannot reach server:', error);
+    alert('⚠️ Cannot connect to server!\n\nPlease make sure:\n1. Server is running: npm start\n2. Server is on port 3000\n3. No firewall blocking the connection\n\nCheck browser console (F12) for details.');
+    updateSyncStatus('Server offline');
+  }
+  
+  try {
+    await loadState();
+    connectWebSocket();
+    attachHandlers();
+    refreshUI();
+    updateSyncStatus('Synced');
+    console.log('Initialization complete');
+  } catch (error) {
+    console.error('Initialization error:', error);
+    alert('Failed to initialize app. Please check the console for details.');
+  }
 }
 
-init();
+// Start the app when DOM is ready
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
+}
